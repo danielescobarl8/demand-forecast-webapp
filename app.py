@@ -61,6 +61,33 @@ def process_data(demand_forecast, data_feed, country, selected_column):
     
     return top_20_pids_with_links, selected_column
 
+def generate_pdf(dataframe, selected_column):
+    """Generate a PDF file with clickable links."""
+    html_content = """
+    <html>
+    <head>
+    <style>
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid black; padding: 8px; text-align: left; }
+    </style>
+    </head>
+    <body>
+    <h2>Top 20 Products for {month}</h2>
+    <table>
+    <tr><th>Product ID</th><th>Quantity</th><th>% of Total</th><th>Link</th></tr>
+    """.format(month=selected_column)
+    
+    for _, row in dataframe.iterrows():
+        link = f'<a href="{row["LINK"]}" target="_blank">View Product</a>' if pd.notna(row['LINK']) else 'N/A'
+        html_content += f"<tr><td>{row['Product ID (PID)']}</td><td>{row[selected_column]}</td><td>{row['% of Total']}</td><td>{link}</td></tr>"
+    
+    html_content += """</table></body></html>"""
+    
+    # Convert HTML to PDF
+    pdf_file = BytesIO()
+    pdfkit.from_string(html_content, pdf_file, options={'quiet': ''})
+    return pdf_file
+
 def main():
     st.title("Demand Forecast & Data Feed Processor")
     
