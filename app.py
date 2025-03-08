@@ -38,8 +38,12 @@ def process_data(demand_forecast, data_feed, country, selected_column):
     else:
         raise KeyError(f"Selected column '{selected_column}' not found in DataFrame.")
     
-    # Find top 20 PIDs by Total Revenue at PVP
-    top_20_pids_df = df_filtered[['Product ID (PID)', selected_column]].copy()
+    # Find top 20 PIDs by quantity
+    top_20_pids_df = df_filtered[['Product ID (PID)', selected_column]].sort_values(by=selected_column, ascending=False).head(20)
+    
+    # Calculate % of Total
+    total_quantity = top_20_pids_df[selected_column].sum()
+    top_20_pids_df['% of Total'] = ((top_20_pids_df[selected_column] / total_quantity) * 100).round(0).astype(int).astype(str) + '%'
     
     # Ensure data types for merging
     data_feed['MPL_PRODUCT_ID'] = data_feed['MPL_PRODUCT_ID'].astype(str)
@@ -64,22 +68,7 @@ def process_data(demand_forecast, data_feed, country, selected_column):
     # Calculate Total Revenue at PVP
     top_20_pids_with_info['Total Revenue at PVP'] = top_20_pids_with_info[selected_column] * top_20_pids_with_info['CONSUMERPRICE']
     
-    # Format currency columns
-    top_20_pids_with_info['CONSUMERPRICE'] = top_20_pids_with_info['CONSUMERPRICE'].apply(lambda x: f"${x:,.2f}")
-    top_20_pids_with_info['Total Revenue at PVP'] = top_20_pids_with_info['Total Revenue at PVP'].apply(lambda x: f"${x:,.2f}")
-    
-    # Sort by Total Revenue at PVP
-    top_20_pids_with_info = top_20_pids_with_info.sort_values(by='Total Revenue at PVP', ascending=False).head(20)
-    
     return top_20_pids_with_info, selected_column
-
-def generate_excel(dataframe):
-    """Generate an Excel file from the processed data."""
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        dataframe.to_excel(writer, sheet_name='Sheet1', index=False)
-    output.seek(0)
-    return output
 
 def main():
     st.title("Demand Forecast & Data Feed Processor")
@@ -108,10 +97,6 @@ def main():
                 processed_data, selected_column = process_data(demand_forecast, data_feed, country, selected_column)
                 st.write("### Processed Data")
                 st.dataframe(processed_data)
-                
-                # Generate and allow Excel download
-                excel_file = generate_excel(processed_data)
-                st.download_button("Download Excel", excel_file, "Demand Forecast Website Readiness.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             except KeyError as e:
                 st.error(f"Error: {e}")
             
