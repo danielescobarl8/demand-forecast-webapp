@@ -76,7 +76,7 @@ def process_data(demand_forecast, data_feed, country, selected_column):
 def generate_excel(dataframe):
     """Generate an Excel file from the processed data."""
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
         dataframe.to_excel(writer, sheet_name='Sheet1', index=False)
     output.seek(0)
     return output
