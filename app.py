@@ -54,7 +54,12 @@ def process_data(demand_forecast, data_feed, country, selected_column):
     data_feed_info['CONSUMERPRICE'] = pd.to_numeric(data_feed_info['CONSUMERPRICE'], errors='coerce').fillna(0)
     
     # Handle cases where PIDs have extra leading numbers
-    pid_map = {pid: mpl for pid in top_20_pids_df['Product ID (PID)'] for mpl in data_feed_info['MPL_PRODUCT_ID'] if mpl.endswith(pid)}
+    pid_map = {
+        pid: mpl 
+        for pid in top_20_pids_df['Product ID (PID)'] 
+        for mpl in data_feed_info['MPL_PRODUCT_ID'] 
+        if mpl.endswith(pid) or mpl[-len(pid):] == pid
+    }
     top_20_pids_df['Product ID (PID)'] = top_20_pids_df['Product ID (PID)'].replace(pid_map)
     
     # Merge with data feed to get URLs and CONSUMERPRICE
