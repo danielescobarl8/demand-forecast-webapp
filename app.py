@@ -25,14 +25,18 @@ def process_data(demand_forecast, data_feed, country, selected_column):
     # Load sheets
     df_forecast = demand_forecast.parse(demand_forecast.sheet_names[0])
     
-    # Strip column names
+    # Strip column names and ensure all are strings
     df_forecast.columns = df_forecast.columns.astype(str).str.strip()
+    selected_column = str(selected_column)  # Ensure selected column is also a string
     
     # Filter by country
     df_filtered = df_forecast[df_forecast['Market'] == country]
     
     # Ensure the selected column is numeric
-    df_filtered[selected_column] = pd.to_numeric(df_filtered[selected_column], errors='coerce').fillna(0)
+    if selected_column in df_filtered.columns:
+        df_filtered[selected_column] = pd.to_numeric(df_filtered[selected_column], errors='coerce').fillna(0)
+    else:
+        raise KeyError(f"Selected column '{selected_column}' not found in DataFrame.")
     
     # Find top 20 PIDs by quantity
     top_20_pids_df = df_filtered[['Product ID (PID)', selected_column]].sort_values(by=selected_column, ascending=False).head(20)
@@ -71,6 +75,7 @@ def main():
         
         # Select Country
         df_forecast = demand_forecast.parse(demand_forecast.sheet_names[0])
+        df_forecast.columns = df_forecast.columns.astype(str).str.strip()
         available_countries = df_forecast['Market'].dropna().unique()
         country = st.selectbox("Select Country", available_countries)
         
@@ -79,13 +84,16 @@ def main():
         selected_column = st.selectbox("Select Month Column", selectable_columns)
         
         if st.button("Process Data"):
-            processed_data, selected_column = process_data(demand_forecast, data_feed, country, selected_column)
-            st.write("### Processed Data")
-            st.dataframe(processed_data)
-            
-            # Generate and allow PDF download
-            pdf_file = generate_pdf(processed_data, selected_column)
-            st.download_button("Download PDF", pdf_file, "Processed_Data.pdf", "application/pdf")
+            try:
+                processed_data, selected_column = process_data(demand_forecast, data_feed, country, selected_column)
+                st.write("### Processed Data")
+                st.dataframe(processed_data)
+                
+                # Generate and allow PDF download
+                pdf_file = generate_pdf(processed_data, selected_column)
+                st.download_button("Download PDF", pdf_file, "Processed_Data.pdf", "application/pdf")
+            except KeyError as e:
+                st.error(f"Error: {e}")
             
 if __name__ == "__main__":
     main()
