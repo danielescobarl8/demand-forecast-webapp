@@ -49,44 +49,21 @@ def process_data(demand_forecast, data_feed, country, selected_column):
     data_feed['MPL_PRODUCT_ID'] = data_feed['MPL_PRODUCT_ID'].astype(str)
     top_20_pids_df['Product ID (PID)'] = top_20_pids_df['Product ID (PID)'].astype(str)
     
-    # Extract MPL_PRODUCT_ID and LINK from data feed
-    data_feed_links = data_feed[['MPL_PRODUCT_ID', 'LINK']].dropna()
+    # Extract MPL_PRODUCT_ID, LINK, and CONSUMERPRICE from data feed
+    data_feed_info = data_feed[['MPL_PRODUCT_ID', 'LINK', 'CONSUMERPRICE']].dropna()
+    data_feed_info['CONSUMERPRICE'] = pd.to_numeric(data_feed_info['CONSUMERPRICE'], errors='coerce').fillna(0)
     
     # Handle cases where PIDs have extra leading numbers
-    pid_map = {pid: mpl for pid in top_20_pids_df['Product ID (PID)'] for mpl in data_feed_links['MPL_PRODUCT_ID'] if mpl.endswith(pid)}
+    pid_map = {pid: mpl for pid in top_20_pids_df['Product ID (PID)'] for mpl in data_feed_info['MPL_PRODUCT_ID'] if mpl.endswith(pid)}
     top_20_pids_df['Product ID (PID)'] = top_20_pids_df['Product ID (PID)'].replace(pid_map)
     
-    # Merge with data feed to get URLs
-    top_20_pids_with_links = top_20_pids_df.merge(data_feed_links.drop_duplicates('MPL_PRODUCT_ID'), left_on="Product ID (PID)", right_on="MPL_PRODUCT_ID", how="left").drop(columns=["MPL_PRODUCT_ID"])
+    # Merge with data feed to get URLs and CONSUMERPRICE
+    top_20_pids_with_info = top_20_pids_df.merge(data_feed_info.drop_duplicates('MPL_PRODUCT_ID'), left_on="Product ID (PID)", right_on="MPL_PRODUCT_ID", how="left").drop(columns=["MPL_PRODUCT_ID"])
     
-    return top_20_pids_with_links, selected_column
-
-def generate_pdf(dataframe, selected_column):
-    """Generate a PDF file with clickable links."""
-    html_content = """
-    <html>
-    <head>
-    <style>
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid black; padding: 8px; text-align: left; }
-    </style>
-    </head>
-    <body>
-    <h2>Top 20 Products for {month}</h2>
-    <table>
-    <tr><th>Product ID</th><th>Quantity</th><th>% of Total</th><th>Link</th></tr>
-    """.format(month=selected_column)
+    # Calculate Total Revenue at PVP
+    top_20_pids_with_info['Total Revenue at PVP'] = top_20_pids_with_info[selected_column] * top_20_pids_with_info['CONSUMERPRICE']
     
-    for _, row in dataframe.iterrows():
-        link = f'<a href="{row["LINK"]}" target="_blank">View Product</a>' if pd.notna(row['LINK']) else 'N/A'
-        html_content += f"<tr><td>{row['Product ID (PID)']}</td><td>{row[selected_column]}</td><td>{row['% of Total']}</td><td>{link}</td></tr>"
-    
-    html_content += """</table></body></html>"""
-    
-    # Convert HTML to PDF
-    pdf_file = BytesIO()
-    pdfkit.from_string(html_content, pdf_file, options={'quiet': ''})
-    return pdf_file
+    return top_20_pids_with_info, selected_column
 
 def main():
     st.title("Demand Forecast & Data Feed Processor")
@@ -115,10 +92,6 @@ def main():
                 processed_data, selected_column = process_data(demand_forecast, data_feed, country, selected_column)
                 st.write("### Processed Data")
                 st.dataframe(processed_data)
-                
-                # Generate and allow PDF download
-                pdf_file = generate_pdf(processed_data, selected_column)
-                st.download_button("Download PDF", pdf_file, "Processed_Data.pdf", "application/pdf")
             except KeyError as e:
                 st.error(f"Error: {e}")
             
