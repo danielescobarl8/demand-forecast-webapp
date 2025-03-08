@@ -23,8 +23,15 @@ def process_data(demand_forecast, data_feed, country, month):
     # Filter by country
     df_filtered = df_forecast[df_forecast['Market'] == country]
     
+    # Ensure columns are timestamps
+    df_filtered.columns = [pd.to_datetime(col, errors='coerce') if isinstance(col, str) else col for col in df_filtered.columns]
+    
     # Get correct month format dynamically
     available_months = [col for col in df_filtered.columns if isinstance(col, pd.Timestamp)]
+    
+    if not available_months:
+        raise ValueError("No valid month columns found in the dataset. Please check the file format.")
+    
     selected_month = min(available_months, key=lambda x: abs(pd.to_datetime(x) - pd.to_datetime(month)))
     
     # Find top 20 PIDs by quantity
@@ -87,12 +94,20 @@ def main():
         data_feed = load_data(data_file, 'txt' if data_file.name.endswith('.txt') else 'excel')
         
         # Select Country and Month
-        available_countries = demand_forecast.parse(demand_forecast.sheet_names[0])['Market'].unique()
+        df_forecast = demand_forecast.parse(demand_forecast.sheet_names[0])
+        available_countries = df_forecast['Market'].dropna().unique()
         country = st.selectbox("Select Country", available_countries)
-        month = st.date_input("Select Month")
+        
+        # Select Month (Year and Month only)
+        available_months = [col for col in df_forecast.columns if isinstance(col, pd.Timestamp)]
+        available_years = sorted(set(m.year for m in available_months))
+        selected_year = st.selectbox("Select Year", available_years)
+        available_month_choices = sorted(set(m.month for m in available_months if m.year == selected_year))
+        selected_month_num = st.selectbox("Select Month", available_month_choices, format_func=lambda x: pd.to_datetime(f'2025-{x}-01').strftime('%B'))
+        selected_month = pd.to_datetime(f'{selected_year}-{selected_month_num}-01')
         
         if st.button("Process Data"):
-            processed_data, selected_month = process_data(demand_forecast, data_feed, country, month)
+            processed_data, selected_month = process_data(demand_forecast, data_feed, country, selected_month)
             st.write("### Processed Data")
             st.dataframe(processed_data)
             
