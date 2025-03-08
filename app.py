@@ -11,6 +11,16 @@ def load_data(file, file_type):
     elif file_type == 'txt':
         return pd.read_csv(file, delimiter='|', dtype=str)
 
+def parse_month_column(col):
+    """Convert month column names like 'feb-25' and '1/02/2025' to datetime format."""
+    try:
+        return pd.to_datetime(col, format='%b-%y', errors='coerce')  # Format like 'feb-25'
+    except:
+        try:
+            return pd.to_datetime(col, format='%d/%m/%Y', errors='coerce')  # Format like '1/02/2025'
+        except:
+            return None
+
 def process_data(demand_forecast, data_feed, country, month):
     """Process and clean the data, apply transformations, and merge datasets."""
     # Load sheets
@@ -23,8 +33,9 @@ def process_data(demand_forecast, data_feed, country, month):
     # Filter by country
     df_filtered = df_forecast[df_forecast['Market'] == country]
     
-    # Ensure columns are timestamps
-    df_filtered.columns = [pd.to_datetime(col, errors='coerce') if isinstance(col, str) else col for col in df_filtered.columns]
+    # Convert month columns to datetime format
+    month_column_mapping = {col: parse_month_column(col) for col in df_filtered.columns if isinstance(col, str)}
+    df_filtered.rename(columns=month_column_mapping, inplace=True)
     
     # Get correct month format dynamically
     available_months = [col for col in df_filtered.columns if isinstance(col, pd.Timestamp)]
@@ -98,12 +109,18 @@ def main():
         available_countries = df_forecast['Market'].dropna().unique()
         country = st.selectbox("Select Country", available_countries)
         
-        # Select Month (Year and Month only)
+        # Convert month columns
+        df_forecast.rename(columns={col: parse_month_column(col) for col in df_forecast.columns if isinstance(col, str)}, inplace=True)
         available_months = [col for col in df_forecast.columns if isinstance(col, pd.Timestamp)]
+        
+        if not available_months:
+            st.error("No valid month columns found. Please check the dataset.")
+            return
+        
         available_years = sorted(set(m.year for m in available_months))
-        selected_year = st.selectbox("Select Year", available_years)
+        selected_year = st.selectbox("Select Year", available_years, index=0 if available_years else None)
         available_month_choices = sorted(set(m.month for m in available_months if m.year == selected_year))
-        selected_month_num = st.selectbox("Select Month", available_month_choices, format_func=lambda x: pd.to_datetime(f'2025-{x}-01').strftime('%B'))
+        selected_month_num = st.selectbox("Select Month", available_month_choices, format_func=lambda x: pd.to_datetime(f'2025-{x}-01').strftime('%B'), index=0 if available_month_choices else None)
         selected_month = pd.to_datetime(f'{selected_year}-{selected_month_num}-01')
         
         if st.button("Process Data"):
